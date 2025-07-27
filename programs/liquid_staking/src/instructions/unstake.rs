@@ -12,7 +12,7 @@ use crate::{error::ErrorCode, Pool};
 use crate::{burn_token, constant::constants::*, PoolConfig, UserUnboundRequest, USER_UNBOUND_REQUEST_SIZE};
 
 #[derive(Accounts)]
-pub struct UnStake<'info> {
+pub struct Unstake<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
 
@@ -40,6 +40,7 @@ pub struct UnStake<'info> {
 
     pub underlaying_mint: Box<Account<'info, Mint>>,
 
+    #[account(mut)]
     pub staking_token_mint: Box<Account<'info, Mint>>,
 
     #[account(
@@ -90,14 +91,22 @@ pub struct UnStake<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
-impl<'info> UnStake<'info> {
+impl<'info> Unstake<'info> {
     pub fn process(&mut self, amount: u64) -> Result<()> {
-        let pool = &self.pool;
+        let pool = &mut self.pool;
         let pool_config = &self.pool_config;
-        let underlaying_amount = (amount as f64).mul(pool.exchange_rate).floor() as u64;
         let user_unbound_request = &mut self.user_unbound_request;
-
+        
         require!(!user_unbound_request.is_unstaked, ErrorCode::UserAlreadyUnstaked);
+        
+        pool.update_exchange_rate(self.staking_token_mint.supply)?;
+        
+        let underlaying_amount = (amount as f64).mul(pool.exchange_rate).round() as u64;
+        msg!("=== UNSTAKE CALCULATION ===");
+        msg!("Amount to unstake: {}", amount);
+        msg!("Pool exchange rate: {}", pool.exchange_rate);
+        msg!("Underlying amount: {}", underlaying_amount);
+        pool.total_staked -= underlaying_amount;
 
         burn_token(
             &self.signer,
@@ -108,7 +117,7 @@ impl<'info> UnStake<'info> {
         )?;
 
         user_unbound_request.is_unstaked = true;
-        user_unbound_request.unstaked_amount = underlaying_amount;
+        user_unbound_request.amount = underlaying_amount;
         user_unbound_request.withdraw_timestamp = self.clock.unix_timestamp + pool_config.unbound_delay;
 
         Ok(())

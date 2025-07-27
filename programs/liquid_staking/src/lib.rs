@@ -15,23 +15,23 @@ declare_id!("BhTX9xkg1JVAqQCNwqpP9f7uH59KsmRPNDQ31BQBqacv");
 pub mod liquid_staking {
     use super::*;
 
-    pub fn initialize(
-        ctx: Context<InitializePool>,
-        exchange_rate: f64,
-        unbound_delay: i64,
-    ) -> Result<()> {
-        ctx.accounts.process(exchange_rate, unbound_delay)
+    pub fn initialize(ctx: Context<InitializePool>, unbound_delay: i64) -> Result<()> {
+        ctx.accounts.process(unbound_delay, ctx.bumps.pool_config)
     }
 
     pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
         ctx.accounts.process(amount)
     }
 
-    pub fn unstake(ctx: Context<UnStake>, amount: u64) -> Result<()> {
+    pub fn unstake(ctx: Context<Unstake>, amount: u64) -> Result<()> {
         ctx.accounts.process(amount)
     }
 
     pub fn withdraw(ctx: Context<WithDraw>) -> Result<()> {
         ctx.accounts.process()
+    }
+
+    pub fn add_reward(ctx: Context<AddReward>, amount: u64) -> Result<()> {
+        ctx.accounts.process(amount)
     }
 }

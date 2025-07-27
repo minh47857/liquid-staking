@@ -851,7 +851,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "liquidity_staking"
+name = "liquid_staking"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",

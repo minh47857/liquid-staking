@@ -62,7 +62,7 @@ pub struct InitializePool<'info> {
 }
 
 impl<'info> InitializePool<'info> {
-    pub fn process(&mut self, exchange_rate: f64, unbound_delay: i64) -> Result<()> {
+    pub fn process(&mut self, unbound_delay: i64, bump: u8) -> Result<()> {
         let pool_config = &mut self.pool_config;
         let pool = &mut self.pool;
 
@@ -70,9 +70,11 @@ impl<'info> InitializePool<'info> {
         pool_config.staking_token_mint = self.staking_token_mint.key();
         pool_config.underlaying_mint = self.underlaying_mint.key();
         pool_config.unbound_delay = unbound_delay;
+        pool_config.bump = [bump];
 
         pool.exchange_rate = 1.0;
-        pool.last_updated = Clock::get()?.unix_timestamp;
+        pool.total_staked = 0;
+        pool.accumulated_reward = 0;
         
         Ok(())
     }

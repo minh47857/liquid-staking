@@ -7,7 +7,7 @@ use anchor_spl::{
     token::{self, Mint, Token, TokenAccount},
 };
 
-use crate::{constant::constants::*, mint_token, transfer_token_user, Pool, PoolConfig, UserUnboundRequest, USER_UNBOUND_REQUEST_SIZE};
+use crate::{constant::constants::*,POOL_CONFIG_SIZE, POOL_SIZE, mint_token, transfer_token_user, Pool, PoolConfig, UserUnboundRequest, USER_UNBOUND_REQUEST_SIZE};
 
 #[derive(Accounts)]
 pub struct Stake<'info> {
@@ -15,29 +15,35 @@ pub struct Stake<'info> {
     pub signer: Signer<'info>,
 
     #[account(
-        mut,
+        init_if_needed, 
         seeds = [
             POOL_CONFIG_SEED,
-            staking_token_mint.key().as_ref(),
-            underlaying_mint.key().as_ref(),
+            staking_token_mint.key().as_ref(), 
+            underlaying_mint.key().as_ref()
         ],
-        bump,
+        bump, 
+        space = POOL_CONFIG_SIZE,
+        payer = signer
     )]
     pub pool_config: Box<Account<'info, PoolConfig>>,
 
     #[account(
-        mut, 
+        init_if_needed, 
         seeds = [
             POOL_SEED,
             staking_token_mint.key().as_ref(),
             underlaying_mint.key().as_ref(),
         ],
         bump,
+        space = POOL_SIZE,
+        payer = signer
     )]
     pub pool: Box<Account<'info, Pool>>,
 
+    #[account(mut)]
     pub underlaying_mint: Box<Account<'info, Mint>>,
 
+    #[account(mut)]
     pub staking_token_mint: Box<Account<'info, Mint>>,
 
     #[account(
@@ -88,9 +94,13 @@ pub struct Stake<'info> {
 
 impl<'info> Stake<'info> {
     pub fn process(&mut self, amount: u64) -> Result<()> {
-        let pool = &self.pool;
+        let pool = &mut self.pool;
         let pool_config = &self.pool_config;
         let user_unbound_request = &mut self.user_unbound_request;
+
+        pool.update_exchange_rate(self.staking_token_mint.supply)?;
+        pool.total_staked += amount;
+
         let staking_token_amount = (amount as f64).div(pool.exchange_rate).floor() as u64;
 
         transfer_token_user(
@@ -101,11 +111,13 @@ impl<'info> Stake<'info> {
             amount
         )?;
 
+        msg!("hello");
+
         mint_token(
             self.staking_token_mint.to_account_info(), 
             self.pool_config.to_account_info(), 
             self.user_staking_token_account.to_account_info(), 
-            &[&pool_config.auth_seeds()],
+            &[&pool_config.auth_seeds()[..]],
             &self.token_program, 
             staking_token_amount,
         )?;        
@@ -113,7 +125,7 @@ impl<'info> Stake<'info> {
         if user_unbound_request.owner == Pubkey::default() {
             user_unbound_request.owner = self.signer.key();
             user_unbound_request.pool_config = self.pool_config.key();
-            user_unbound_request.unstaked_amount = 0;
+            user_unbound_request.amount = 0;
             user_unbound_request.withdraw_timestamp = 0;
             user_unbound_request.is_unstaked = false;
         };

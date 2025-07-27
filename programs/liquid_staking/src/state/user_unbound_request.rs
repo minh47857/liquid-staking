@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 pub struct UserUnboundRequest {
     pub owner: Pubkey,
     pub pool_config: Pubkey,
-    pub unstaked_amount: u64,
+    pub amount: u64,
     pub withdraw_timestamp: i64,
     pub is_unstaked: bool,
 }

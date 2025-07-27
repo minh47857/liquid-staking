@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount};
 
 use crate::error::ErrorCode;
-use crate::{constant::constants::{POOL_CONFIG_SEED, USER_UNBOUND_REQUEST_SEED}, transfer_token_with_signer, PoolConfig, UserUnboundRequest};
+use crate::{constant::constants::{POOL_SEED, POOL_CONFIG_SEED, USER_UNBOUND_REQUEST_SEED}, transfer_token_with_signer, PoolConfig, UserUnboundRequest, Pool};
 
 
 #[derive(Accounts)]
@@ -13,9 +13,9 @@ pub struct WithDraw<'info> {
     pub staking_token_mint: Account<'info, Mint>,
 
     pub underlaying_mint: Account<'info, Mint>,
-
+    
     #[account(
-        mut, 
+        mut,
         seeds = [
             POOL_CONFIG_SEED,
             staking_token_mint.key().as_ref(),
@@ -23,7 +23,18 @@ pub struct WithDraw<'info> {
         ],
         bump,
     )]
-    pub pool: Box<Account<'info, PoolConfig>>,
+    pub pool_config: Box<Account<'info, PoolConfig>>,
+
+    #[account(
+        mut, 
+        seeds = [
+            POOL_SEED,
+            staking_token_mint.key().as_ref(),
+            underlaying_mint.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub pool: Box<Account<'info, Pool>>,
 
     #[account(
         mut,
@@ -35,7 +46,7 @@ pub struct WithDraw<'info> {
     #[account(
         mut, 
         associated_token::mint = underlaying_mint,
-        associated_token::authority = pool,
+        associated_token::authority = pool_config,
     )]
     pub pool_underlaying_account: Box<Account<'info, TokenAccount>>,
 
@@ -58,25 +69,25 @@ pub struct WithDraw<'info> {
 
 impl<'info> WithDraw<'info> {
     pub fn process(&mut self) -> Result<()> {
-        let pool = &self.pool;
+        let pool_config = &self.pool_config;
         let user_unbound_request = &mut self.user_unbound_request;
 
         let current_time = self.clock.unix_timestamp;
-        let amount = user_unbound_request.unstaked_amount;
+        let amount = user_unbound_request.amount;
 
         require!(current_time >= user_unbound_request.withdraw_timestamp, ErrorCode::UnboundDelayNotPassed);
         
         transfer_token_with_signer(
             self.pool_underlaying_account.to_account_info(),
-            self.pool.to_account_info(),
+            self.pool_config.to_account_info(),
             self.user_underlaying_account.to_account_info(),
-            &[&pool.auth_seeds()], 
+            &[&pool_config.auth_seeds()], 
             &self.token_program, 
             amount,
         )?;
 
         user_unbound_request.is_unstaked = false;
-        user_unbound_request.unstaked_amount = 0;
+        user_unbound_request.amount = 0;
         user_unbound_request.withdraw_timestamp = 0;
 
         Ok(())
